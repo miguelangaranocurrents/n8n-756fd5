@@ -243,6 +243,7 @@ export const extendTransform = (expression: string): { code: string } | undefine
 							patchNode = types.builders.memberExpression(
 								valueMemberExpression,
 								currentNode.property,
+								currentNode.computed,
 							);
 							// In the case of a call expression we take the arguments and make the
 							// callee our chain value.
@@ -427,6 +428,25 @@ export const extendTransform = (expression: string): { code: string } | undefine
 							alternative,
 						),
 					);
+				}
+			},
+		});
+
+		// recast ranks `??` below `||` and `&&`, so when it reprints a `??` whose
+		// operand is an `||`/`&&` expression it drops the parentheses around it.
+		// Mixing `??` with `||`/`&&` without parentheses is a syntax error, so we
+		// make the grouping explicit.
+		visit(ast, {
+			visitLogicalExpression(path) {
+				this.traverse(path);
+				const node = path.node;
+				if (node.operator !== '??') return;
+
+				if (node.left.type === 'LogicalExpression' && node.left.operator !== '??') {
+					node.left = types.builders.parenthesizedExpression(node.left);
+				}
+				if (node.right.type === 'LogicalExpression' && node.right.operator !== '??') {
+					node.right = types.builders.parenthesizedExpression(node.right);
 				}
 			},
 		});
